@@ -1,0 +1,30 @@
+# IDE 
+.vscode
+
+# Builds and Compiled Files
+node_modules/
+build/
+
+# Yarn Files
+frontend/.yarn/*
+!frontend/.yarn/cache
+!frontend/.yarn/patches
+!frontend/.yarn/plugins
+!frontend/.yarn/releases
+!frontend/.yarn/sdks
+!frontend/.yarn/versions
+yarn-error.log
+.yarnrc.yml
+frontend/.pnp.cjs
+
+# Python Files
+__pycache__/
+.pytest_cache/
+
+# Backend
+backend/src/.env
+dump.rdb
+
+# q
+!q/tables/h.q
+q/tables*

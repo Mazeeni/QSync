@@ -1,0 +1,91 @@
+image: node:latest
+
+stages:
+  - compile
+  - style
+  - test
+  - deploy
+
+# Setup scripts
+.setup:
+  front:
+    - cd frontend
+    - yarn set version stable
+    - YARN_ENABLE_IMMUTABLE_INSTALLS=false CI=true yarn install
+  back:
+    - cd backend
+    - pip3 install pipenv
+    - pipenv install --dev
+
+# Compile
+compile-front:
+  stage: compile
+  script:
+    - !reference [.setup, front]
+    - yarn compile
+  needs: []
+
+compile-back:
+  stage: compile
+  image: python:3.8.10-slim-buster
+  script:
+    - !reference [.setup, back]
+    - pipenv run compile
+  needs: []
+
+# Style
+style-front:
+  stage: style
+  script:
+    - !reference [.setup, front]
+    - yarn lint
+    - yarn check-format
+  needs: [compile-front]
+
+style-back:
+  stage: style
+  image: python:3.8.10-slim-buster
+  script:
+    - !reference [.setup, back]
+    - pipenv run lint
+    - pipenv run check-format
+  needs: [compile-back]
+
+# Test
+test-front:
+  stage: test
+  script:
+    - !reference [.setup, front]
+    - CI=true yarn test
+  needs: [style-front]
+
+test-back:
+  stage: test
+  image: python:3.8.10-slim-buster
+  script:
+    - !reference [.setup, back]
+    - cat $TEST_ENV &> src/.env
+    - apt-get update
+    - apt-get install redis-server -y
+    - redis-server&
+    - cd src
+    - pipenv run test
+  needs: [style-back]
+
+# Deploy
+deploy-app:
+  image: docker/compose:debian-1.29.2
+  stage: deploy
+  script:
+    - cat $ENV_FILE &> backend/src/.env
+    - 'command -v ssh-agent >/dev/null || ( apt-get update -y && apt-get install openssh-client -y )'
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - echo "$SSH_KNOWN_HOSTS" >> ~/.ssh/known_hosts
+    - chmod 644 ~/.ssh/known_hosts
+    - COMPOSE_DOCKER_CLI_BUILD=0 DOCKER_HOST="ssh://$SSH_USER@$SERVER_ADDRESS" docker-compose up -d
+  only:
+    - master
+  needs: [test-front, test-back]
